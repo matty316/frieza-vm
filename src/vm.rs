@@ -30,28 +30,28 @@ impl TryInto<OpCode> for u8 {
 
 pub(crate) struct VM {
     ip: usize,
-    stack: [u8; 256],
     stack_pointer: usize,
-    memory: Vec<u8>
+    stack: [u8; 256],
+    memory: Vec<u8>,
 }
 
 impl VM {
     pub(crate) fn new() -> Self {
         VM {
             ip: 0,
-            stack: [0; 256],
             stack_pointer: 0,
+            stack: [0; 256],
             memory: vec![],
         }
     }
 
     pub(crate) fn interpret(&mut self, bytes: &[u8]) -> u8 {
+        // copy program into memory
+        for b in bytes {
+            self.memory.push(b.clone());
+        }
+        
         while self.ip < bytes.len() {
-            // copy program into memory
-            for b in bytes {
-                self.memory.push(b.clone());
-            }
-
             if DEBUG {
                 println!("Stack: {:?}", &self.stack[0..self.stack_pointer]);
             }
