@@ -30,23 +30,36 @@ impl TryInto<OpCode> for u8 {
 
 pub(crate) struct VM {
     ip: usize,
-    stack: Vec<u8>,
+    stack: [u8; 256],
+    stack_pointer: usize,
+    memory: Vec<u8>
 }
 
 impl VM {
     pub(crate) fn new() -> Self {
         VM {
             ip: 0,
-            stack: vec![],
+            stack: [0; 256],
+            stack_pointer: 0,
+            memory: vec![],
         }
     }
 
-    pub(crate) fn interpret(&mut self, bytes: &[u8]) -> &u8 {
+    pub(crate) fn interpret(&mut self, bytes: &[u8]) -> u8 {
         while self.ip < bytes.len() {
-            if DEBUG {
-                println!("Stack: {:?}", self.stack);
+            // copy program into memory
+            for b in bytes {
+                self.memory.push(b.clone());
             }
-            let b = bytes[self.ip].try_into().expect(&format!("Invalid OpCode {} at instruction {}", bytes[self.ip], self.ip));
+
+            if DEBUG {
+                println!("Stack: {:?}", &self.stack[0..self.stack_pointer]);
+            }
+
+            let b = self.memory[self.ip]
+                .try_into()
+                .expect(&format!("Invalid OpCode {} at instruction {}", bytes[self.ip], self.ip));
+
             self.ip += 1;
             match b {
                 OpCode::Return => {
@@ -58,40 +71,54 @@ impl VM {
                 OpCode::Constant => {
                     let constant = bytes[self.ip];
                     self.ip += 1;
-                    self.stack.push(constant);
+                    self.push(constant);
                 }
                 OpCode::Negate => {
-                    let a = self.stack.pop().unwrap();
-                    self.stack.push(a.wrapping_neg());
+                    let a = self.pop();
+                    self.push(a.wrapping_neg());
                 }
                 OpCode::Add => {
-                    let b = self.stack.pop().unwrap();
-                    let a = self.stack.pop().unwrap();
-                    self.stack.push(a.wrapping_add(b));
+                    let b = self.pop();
+                    let a = self.pop();
+                    self.push(a.wrapping_add(b));
                 }
                 OpCode::Subtract => {
-                    let b = self.stack.pop().unwrap();
-                    let a = self.stack.pop().unwrap();
-                    self.stack.push(a.wrapping_sub(b));
+                    let b = self.pop();
+                    let a = self.pop();
+                    self.push(a.wrapping_sub(b));
                 }
                 OpCode::Multiply => {
-                    let b = self.stack.pop().unwrap();
-                    let a = self.stack.pop().unwrap();
-                    self.stack.push(a.wrapping_mul(b));
+                    let b = self.pop();
+                    let a = self.pop();
+                    self.push(a.wrapping_mul(b));
                 }
                 OpCode::Divide => {
-                    let b = self.stack.pop().unwrap();
-                    let a = self.stack.pop().unwrap();
-                    self.stack.push(a.wrapping_div(b));
+                    let b = self.pop();
+                    let a = self.pop();
+                    self.push(a.wrapping_div(b));
                 }
             }
         }
 
-        return &0;
+        return 0;
     }
 
-    fn peek(&self) -> &u8 {
-        self.stack.last().unwrap()
+    fn push(&mut self, byte: u8) {
+        if self.stack_pointer + 1 >= self.stack.len() {
+            panic!("Stack overflow")
+        }
+        self.stack_pointer += 1;
+        self.stack[self.stack_pointer] = byte;
+    }
+
+    fn pop(&mut self) -> u8 {
+        let b = self.stack[self.stack_pointer];
+        self.stack_pointer -= 1;
+        b
+    }
+
+    fn peek(&self) -> u8 {
+        self.stack[self.stack_pointer]
     }
 }
 
@@ -112,6 +139,53 @@ mod test {
 
         let mut vm = VM::new();
         let val = vm.interpret(&instructions);
-        assert_eq!(val, &15)
+        assert_eq!(val, 15)
+    }
+    #[test]
+    fn test_sub() {
+        let instructions = [
+            1, // Constant
+            10,
+            1, // Constant
+            5,
+            4, // Subtract
+            0, // Return
+        ];
+
+        let mut vm = VM::new();
+        let val = vm.interpret(&instructions);
+        assert_eq!(val, 5)
+    }
+
+    #[test]
+    fn test_mul() {
+        let instructions = [
+            1, // Constant
+            10,
+            1, // Constant
+            5,
+            5, // Multiply
+            0, // Return
+        ];
+
+        let mut vm = VM::new();
+        let val = vm.interpret(&instructions);
+        assert_eq!(val, 50)
+    }
+
+    #[test]
+    fn test_div() {
+        let instructions = [
+            1, // Constant
+            10,
+            1, // Constant
+            5,
+            6, // Divide
+            0, // Return
+        ];
+
+        let mut vm = VM::new();
+        let val = vm.interpret(&instructions);
+        assert_eq!(val, 2)
     }
 }
